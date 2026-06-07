@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Member-Guest Handicap Review — Geneva Golf Club</title>
+<title>The 1900 Handicap Review 2026 — Geneva Golf Club</title>
 <!-- Firebase (compat) for optional live cloud sync. If these fail to load the app still works offline. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -11,6 +11,7 @@
 <style>
   :root{
     --green:#1b5e20; --green-2:#2e7d32; --green-light:#e8f5e9;
+    --blue:#0d47a1; --blue-2:#1976d2;
     --ink:#1c2024; --muted:#5b6670; --line:#dfe3e6; --bg:#f4f6f5;
     --card:#ffffff; --accent:#0b6e4f;
     --flag-high:#c62828; --flag-med:#ef6c00; --flag-low:#f9a825; --ok:#2e7d32;
@@ -19,7 +20,7 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--ink);background:var(--bg);font-size:14px;line-height:1.45}
-  header.app{background:linear-gradient(135deg,var(--green),var(--green-2));color:#fff;padding:14px 20px;
+  header.app{background:linear-gradient(135deg,var(--blue),var(--blue-2));color:#fff;padding:14px 20px;
     display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   header.app h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
   header.app .sub{font-size:12px;opacity:.9;margin-top:2px}
@@ -108,7 +109,7 @@
 <header class="app">
   <div class="logo">⛳</div>
   <div>
-    <h1>Member-Guest Handicap Review</h1>
+    <h1>The 1900 Handicap Review 2026</h1>
     <div class="sub">Geneva Golf Club · Geneva, IL</div>
   </div>
   <div class="spacer"></div>
@@ -150,6 +151,7 @@
         <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="checkbox" id="fieldOnly"> Tournament field only</label>
         <span id="fieldCount" class="muted" style="font-size:12px"></span>
         <span class="spacer" style="flex:1"></span>
+        <button id="btnImportPlayers" title="Paste a list of players and their GHIN numbers">⬆ Import list</button>
         <button class="primary" id="btnAddPlayer">+ Add player</button>
       </div>
       <div class="tablewrap">
@@ -464,7 +466,7 @@ function requireEdit(){ if(canEdit()) return true; return unlockPrompt(); }
 function renderHeaderLock(){
   // disable data-editing controls for view-only (locked) devices
   const dis = !canEdit();
-  ["btnAddPlayer","btnImport","btnSample","btnClear"].forEach(id=>{ const b=document.querySelector("#"+id); if(b){ b.disabled=dis; b.style.opacity=dis?".45":""; b.title=dis?"Locked by organizer":""; } });
+  ["btnAddPlayer","btnImportPlayers","btnImport","btnSample","btnClear"].forEach(id=>{ const b=document.querySelector("#"+id); if(b){ b.disabled=dis; b.style.opacity=dis?".45":""; b.title=dis?"Locked by organizer":""; } });
   const el=document.querySelector("#lockChip"); if(!el) return;
   if(!lockSet()){ el.style.display="none"; return; }
   el.style.display="inline-block";
@@ -1657,6 +1659,49 @@ function openImport(){
   $("#importDialog").showModal();
 }
 
+/* Focused Players-tab import: paste a list of players + GHIN numbers, one per line. */
+function openImportPlayers(){
+  $("#importBody").innerHTML = `
+    <div class="info">Paste a list of players and their GHIN numbers — <b>one player per line</b>.
+      After importing, use <b>⛳ Pull from GHIN</b> to fill in handicap indexes and scores.</div>
+    <p class="help">Reliable format: <code>Last, First, GHIN</code> — the comma tells us which name is the surname.
+      Without a comma we read it as <code>First Last</code>. Put the GHIN number last. A header row is optional, and
+      pasting straight from a spreadsheet works too.</p>
+    <textarea id="impList" placeholder="Smith, John, 1234567&#10;Jones, Robert, 7654321&#10;Pat O'Brien 2345678"></textarea>
+    <div class="row" style="margin-top:6px">
+      <input type="file" id="impListFile" accept=".csv,.txt">
+      <button class="primary small" id="impListBtn">Import players</button>
+    </div>
+    <div id="impResult"></div>`;
+  $("#impListFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{$("#impList").value=rd.result;}; rd.readAsText(f); };
+  $("#impListBtn").onclick=()=>{ const res=importPlayerList($("#impList").value); showImpResult(res); renderAll(); };
+  $("#importDialog").showModal();
+}
+
+/* Tolerant parser for a pasted player list. Each line: a name plus a trailing GHIN number.
+   "Last, First, GHIN" (comma) is unambiguous; otherwise the name is read as "First Last". */
+function importPlayerList(txt){
+  const lines = String(txt||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return {error:"Nothing to import — paste one player per line."};
+  let added=0; const skipped=[];
+  lines.forEach((line,i)=>{
+    // Skip an optional header row (mentions name/ghin and has no GHIN-looking number).
+    if(i===0 && /ghin|name|player/i.test(line) && !/\d{5,}/.test(line)) return;
+    const ms = [...line.matchAll(/\d{5,}/g)];                  // GHIN = last run of 5+ digits
+    const gm = ms.length ? ms[ms.length-1] : null;
+    const ghin = gm ? gm[0] : "";
+    const namePart = (gm ? line.slice(0, gm.index) : line).replace(/[\s,;\t]+$/,"").trim();
+    if(!namePart){ skipped.push(line); return; }
+    let first="", last="";
+    if(namePart.includes(",")){ const parts=namePart.split(","); last=parts[0].trim(); first=parts.slice(1).join(" ").trim(); }
+    else { const parts=namePart.split(/[\t ]+/).filter(Boolean); if(parts.length===1){ last=parts[0]; } else { first=parts.slice(0,-1).join(" "); last=parts[parts.length-1]; } }
+    upsertPlayer({ firstName:first, lastName:last, ghin, gender:"M" });
+    added++;
+  });
+  save();
+  return {players:added, msg:`Imported ${added} player(s)${skipped.length?` · skipped ${skipped.length} line(s) with no name`:""}.`};
+}
+
 /* =========================== RENDER: PULL FROM GHIN =========================== */
 function renderGhin(){
   const c=state.ghin;
@@ -2127,6 +2172,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("#teeFilter").onchange=renderPlayers;
   $("#fieldOnly").onchange=renderPlayers;
   $("#btnAddPlayer").onclick=()=>{ if(!requireEdit())return; openPlayer(null); };
+  $("#btnImportPlayers").onclick=()=>{ if(!requireEdit())return; openImportPlayers(); };
   // toggle Field / Vegas flags (don't open the dialog)
   $("#playersTable").addEventListener("change",e=>{
     const cb=e.target.closest("[data-tourney],[data-vegas]"); if(!cb) return;
