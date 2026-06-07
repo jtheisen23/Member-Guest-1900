@@ -23,6 +23,6 @@ jobs:
           GHIN_EMAIL: ${{ secrets.GHIN_EMAIL }}
           GHIN_PASSWORD: ${{ secrets.GHIN_PASSWORD }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          ROOM_ID: geneva-mm-2026
+          ROOM_ID: geneva-mg-2026
           GHIN_CLUB_ID: "52147"
           GHIN_ASSOC_ID: "106"

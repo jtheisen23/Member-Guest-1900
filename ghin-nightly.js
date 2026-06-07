@@ -30,7 +30,7 @@ const CONFIG = {
   clubId: process.env.GHIN_CLUB_ID || "52147",
   assocId: process.env.GHIN_ASSOC_ID || "106",
   room: process.env.ROOM_ID || "geneva-mg-2026",
-  databaseURL: process.env.FIREBASE_DATABASE_URL || "https://member-member-handicap-review-default-rtdb.firebaseio.com",
+  databaseURL: process.env.FIREBASE_DATABASE_URL || "https://member-guest-1900-default-rtdb.firebaseio.com",
   pages: parseInt(process.env.SCORE_PAGES || "3", 10)
 };
 
