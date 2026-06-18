@@ -1586,7 +1586,7 @@ function importPlayersBlob(txt){
       // golfer search result?
       const list = Array.isArray(j)?j : (j.golfers||j.players||j.data||[]);
       let added=0;
-      list.forEach(g=>{ upsertPlayer(playerFromGhinGolfer(g)); added++; });
+      list.forEach(g=>{ upsertPlayer(playerFromGhinGolfer(g)).tournament=true; added++; });   // pasted/uploaded → in the field
       save(); return {players:added, msg:`Imported ${added} player(s) from JSON.`};
     }catch(e){ return {error:"Invalid JSON: "+e.message}; }
   }
@@ -1603,6 +1603,7 @@ function importPlayersBlob(txt){
     if(!fn&&!ln&&o.name){ const parts=String(o.name).split(/,|\s+/).filter(Boolean); if(String(o.name).includes(",")){last=parts[0];first=parts.slice(1).join(" ");} else {first=parts[0];last=parts.slice(1).join(" ");} }
     const p=upsertPlayer({firstName:first.trim(),lastName:last.trim(),ghin:(o.ghin||"").trim(),index:parseIndex(o.index),gender:o.gender||"M"});
     if(o.index!=null&&o.index!=="") p.index=parseIndex(o.index);
+    p.tournament=true;   // uploaded CSV/JSON → in the field
     added++;
     if(isRounds){
       p.rounds=p.rounds||[];
@@ -1695,7 +1696,7 @@ function importPlayerList(txt){
     let first="", last="";
     if(namePart.includes(",")){ const parts=namePart.split(","); last=parts[0].trim(); first=parts.slice(1).join(" ").trim(); }
     else { const parts=namePart.split(/[\t ]+/).filter(Boolean); if(parts.length===1){ last=parts[0]; } else { first=parts.slice(0,-1).join(" "); last=parts[parts.length-1]; } }
-    upsertPlayer({ firstName:first, lastName:last, ghin, gender:"M" });
+    upsertPlayer({ firstName:first, lastName:last, ghin, gender:"M" }).tournament=true;   // pasted list → in the field
     added++;
   });
   save();
