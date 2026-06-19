@@ -134,7 +134,6 @@
   <button data-view="overview">Teams Overview</button>
   <button data-view="team-anomaly">Teams Anomaly</button>
   <button data-view="vegas">Vegas Players</button>
-  <button data-view="settings">Course &amp; Rules</button>
   <button data-view="sync">☁ Share / Sync</button>
   <button data-view="help">Help</button>
 </nav>
@@ -273,42 +272,6 @@
 
   <!-- ============ VEGAS PLAYERS ============ -->
   <section class="view" id="view-vegas"></section>
-
-  <!-- ============ SETTINGS ============ -->
-  <section class="view" id="view-settings">
-    <div id="settingsLockBanner"></div>
-    <div class="card">
-      <h2>Course tee ratings</h2>
-      <div class="info">⚠︎ These are <b>editable defaults</b> — confirm them against the official Geneva Golf Club
-        scorecard before finalizing. Course handicaps and all team allocations depend on these numbers.</div>
-      <div class="tablewrap" style="max-height:none">
-        <table class="hcp-table">
-          <thead><tr>
-            <th>Tee</th>
-            <th class="num">18-hole Rating</th><th class="num">18-hole Slope</th><th class="num">18-hole Par</th>
-            <th class="num">9-hole Rating</th><th class="num">9-hole Slope</th><th class="num">9-hole Par</th>
-          </tr></thead>
-          <tbody id="teeBody"></tbody>
-        </table>
-      </div>
-      <p class="help">WHS Course Handicap (18) = Index × (Slope ÷ 113) + (Rating − Par). For 9 holes the index is halved
-        and the 9-hole rating/slope/par are used.</p>
-    </div>
-    <div class="card">
-      <h2>Tournament rounds &amp; handicap allocation</h2>
-      <p class="help">Edit the allocation percentages if your committee uses different numbers. These drive the figures shown in Team Builder.</p>
-      <div class="tablewrap" style="max-height:none">
-        <table id="rulesTable" class="hcp-table">
-          <thead><tr><th>Round</th><th>Format</th><th>Tees</th><th>Allocation</th></tr></thead>
-          <tbody id="rulesBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <h2>Anomaly detection thresholds</h2>
-      <div class="row" id="thresholds"></div>
-    </div>
-  </section>
 
   <!-- ============ SHARE / SYNC ============ -->
   <section class="view" id="view-sync"></section>
@@ -1061,7 +1024,7 @@ function renderVegas(){
       </div>
       <p class="help">Players with <b>both</b> the <b>Field</b> and <b>Vegas</b> boxes checked. Each split index is a WHS-style
         index from only that subset of rounds (needs ≥3 rounds to show). The <b>Δ</b> column is the Vegas index minus the
-        weekday index; a flag appears when the gap is ≥ ${TH} (adjustable in Course &amp; Rules).</p>
+        weekday index; a flag appears when the gap is ≥ ${TH}.</p>
       <div class="legend">
         <span><b>Vegas</b> = Fri &amp; Sun (money)</span>
         <span><b>Weekday</b> = Geneva rounds, not Fri/Sun (casual)</span>
@@ -1237,52 +1200,6 @@ function autoBalance(){
 }
 
 /* =========================== RENDER: SETTINGS =========================== */
-function renderSettings(){
-  $("#teeBody").innerHTML = state.tees.map((t,i)=>`
-    <tr>
-      <td><input value="${esc(t.name)}" data-tee="${i}" data-f="name" style="width:90px"></td>
-      <td class="num"><input type="number" step="0.1" value="${t.r18}" data-tee="${i}" data-f="r18"></td>
-      <td class="num"><input type="number" value="${t.s18}" data-tee="${i}" data-f="s18"></td>
-      <td class="num"><input type="number" value="${t.par18}" data-tee="${i}" data-f="par18"></td>
-      <td class="num"><input type="number" step="0.1" value="${t.r9}" data-tee="${i}" data-f="r9"></td>
-      <td class="num"><input type="number" value="${t.s9}" data-tee="${i}" data-f="s9"></td>
-      <td class="num"><input type="number" value="${t.par9}" data-tee="${i}" data-f="par9"></td>
-    </tr>`).join("");
-
-  const r=state.rules;
-  $("#rulesBody").innerHTML = `
-    <tr><td><b>Round 1</b></td><td>${esc(r.r1.name)}</td><td>${esc(r.r1.tee)}</td>
-      <td><input type="number" step="1" value="${r.r1.lowPct*100}" data-rule="r1.lowPct" style="width:60px">% of low 18-hole +
-          <input type="number" step="1" value="${r.r1.highPct*100}" data-rule="r1.highPct" style="width:60px">% of high, ×
-          <input type="number" step="1" value="${r.r1.mult*100}" data-rule="r1.mult" style="width:60px">%</td></tr>
-    <tr><td><b>Round 2</b></td><td>${esc(r.r2.name)}</td><td>${esc(r.r2.tee)}</td>
-      <td><input type="number" step="1" value="${r.r2.teamPct*100}" data-rule="r2.teamPct" style="width:60px">% of team's total 18-hole, ÷ 2</td></tr>
-    <tr><td><b>Round 3</b></td><td>${esc(r.r3.name)}</td><td>${esc(r.r3.tee)}</td>
-      <td><input type="number" step="1" value="${r.r3.indivPct*100}" data-rule="r3.indivPct" style="width:60px">% of each player's 18-hole, ÷ 2</td></tr>
-    <tr><td><b>Round 4</b></td><td>${esc(r.r4.name)}</td><td>${esc(r.r4.tee)}</td>
-      <td><input type="number" step="1" value="${r.r4.indivPct*100}" data-rule="r4.indivPct" style="width:60px">% of each player's 18-hole, ÷ 2</td></tr>`;
-
-  const T=state.thresholds;
-  const tf=(k,label,step="1")=>`<div class="field"><label>${label}</label><input type="number" step="${step}" value="${T[k]}" data-thr="${k}"></div>`;
-  $("#thresholds").innerHTML =
-    tf("minRounds","Min rounds for stable index")+
-    tf("staleDays","Stale posting (days)")+
-    tf("volatility","Volatility σ flag","0.5")+
-    tf("improving","Trending-hot gap","0.5")+
-    tf("inflating","Score-rising gap","0.5")+
-    tf("potentialGap","Upside gap","0.5")+
-    tf("vegasDelta","Vegas vs weekday Δ flag","0.5");
-
-  // read-only for view-only (locked) devices
-  const ed = canEdit();
-  const banner=$("#settingsLockBanner");
-  if(banner) banner.innerHTML = (!ed && lockSet())
-    ? `<div class="warn" style="display:flex;align-items:center;gap:10px">🔒 Course &amp; Rules are locked by the organizer — view only.
-        <button class="small primary" id="settingsUnlockBtn">Unlock to edit</button></div>` : "";
-  if($("#settingsUnlockBtn")) $("#settingsUnlockBtn").onclick=()=>{ if(unlockPrompt()){ renderHeaderLock(); renderSettings(); } };
-  $$("#view-settings input, #view-settings select").forEach(el=>{ el.disabled=!ed; });
-}
-
 /* =========================== PLAYER DIALOG =========================== */
 let editingId=null;
 function openPlayer(id){
@@ -2020,7 +1937,7 @@ function rerenderView(v){
   if(v==="anomalies") renderAnomalies(); else if(v==="watch") renderWatch(); else if(v==="teams") renderTeams();
   else if(v==="overview") renderOverview(); else if(v==="team-anomaly") renderTeamAnomalies();
   else if(v==="vegas") renderVegas();
-  else if(v==="settings") renderSettings(); else if(v==="sync") renderSync(); else renderPlayers();
+  else if(v==="sync") renderSync(); else renderPlayers();
 }
 async function syncConnect(cfg, roomId, seedIfEmpty){
   if(typeof firebase==="undefined" || !firebase.initializeApp) throw new Error("Firebase library isn't loaded (check your network / that the page can reach gstatic.com).");
@@ -2198,7 +2115,6 @@ function switchView(v){
   if(v==="rounds2026") renderRounds2026();
   if(v==="overview") renderOverview();
   if(v==="team-anomaly") renderTeamAnomalies();
-  if(v==="settings") renderSettings();
   if(v==="sync") renderSync();
   if(v==="help") renderHelp();
 }
@@ -2281,15 +2197,6 @@ document.addEventListener("DOMContentLoaded",()=>{
     const ti=+sel.value; const slot=state.teams[ti][0]?1:0;
     state.teams[ti][slot]=pid; save(); renderTeams();
   });
-  // settings inputs (delegated)
-  $("#view-settings").addEventListener("input",e=>{
-    if(!canEdit()) return;   // read-only when locked
-    const t=e.target;
-    if(t.dataset.tee!=null){ const i=+t.dataset.tee,f=t.dataset.f; state.tees[i][f]= f==="name"?t.value:num(t.value); save(); }
-    else if(t.dataset.rule){ const [r,f]=t.dataset.rule.split("."); state.rules[r][f]=num(t.value)/100; save(); }
-    else if(t.dataset.thr){ state.thresholds[t.dataset.thr]=num(t.value); save(); }
-  });
-
   renderPlayers();
   renderHeaderLock();
   try{ syncAutoConnect(); }catch(e){ console.warn("sync auto-connect error", e); }
@@ -2356,7 +2263,7 @@ function renderHelp(){
       less reliable.</li>
   </ul>
   <p class="help">These are <b>screening signals</b>, not proof of anything. Always open the round history and use
-  judgment. Thresholds are adjustable in <b>Course &amp; Rules → Anomaly detection</b>.</p>
+  judgment.</p>
 
   <h3>5 · Team Builder</h3>
   <p>Add empty teams and assign two members each, or hit <b>Auto-balance</b> to pair strongest-with-weakest so combined
@@ -2368,8 +2275,7 @@ function renderHelp(){
     <li><b>R3 Partner's Best Ball (White):</b> ${state.rules.r3.indivPct*100}% of each player's 9-hole handicap.</li>
     <li><b>R4 Total Score of Partners (Blue):</b> ${state.rules.r4.indivPct*100}% of each player's 9-hole handicap.</li>
   </ul>
-  <p>Edit tees, allocations and thresholds anytime in <b>Course &amp; Rules</b>. Export the final pairings with
-  <b>Export teams (CSV)</b>.</p>
+  <p>Export the final pairings with <b>Export teams (CSV)</b>.</p>
 
   <div class="warn">⚠︎ Confirm the Geneva Golf Club tee ratings/slopes (Settings tab) against the official scorecard —
   the pre-filled values are best-known estimates and every handicap figure depends on them.</div>`;
