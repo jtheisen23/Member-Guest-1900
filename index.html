@@ -130,6 +130,7 @@
   <button data-view="anomalies">Anomaly Review</button>
   <button data-view="watch">Posting Watch</button>
   <button data-view="teams">Team Builder</button>
+  <button data-view="rounds2026">2026 Rounds</button>
   <button data-view="overview">Teams Overview</button>
   <button data-view="team-anomaly">Teams Anomaly</button>
   <button data-view="vegas">Vegas Players</button>
@@ -259,6 +260,9 @@
   </section>
 
   <!-- ============ TEAMS OVERVIEW ============ -->
+  <!-- ============ 2026 ROUNDS ============ -->
+  <section class="view" id="view-rounds2026"></section>
+
   <section class="view" id="view-overview"></section>
 
   <!-- ============ TEAMS ANOMALY ============ -->
@@ -851,6 +855,55 @@ function renderTeamSummary(){
 }
 
 /* =========================== RENDER: TEAMS OVERVIEW =========================== */
+/* =========================== RENDER: 2026 ROUNDS =========================== */
+function renderRounds2026(){
+  const MIN_ROUNDS = 10;   // players below this many 2026 rounds are highlighted
+  const field = state.players.filter(p=>p.tournament);
+  if(!field.length){
+    $("#view-rounds2026").innerHTML = `<div class="card"><h2>2026 Rounds</h2>
+      <p class="muted">No players in the tournament field yet — check the <b>Field</b> box on the
+      <b>Players</b> tab to add players here.</p></div>`;
+    return;
+  }
+  const rows = field.map(p=>{
+    const m=playerMetrics(p);
+    return {p, n2026:m.rounds2026, total:m.n, last:m.lastDate, index:m.index};
+  }).sort((a,b)=> a.n2026-b.n2026 || playerName(a.p.id).localeCompare(playerName(b.p.id)));
+  const short = rows.filter(r=>r.n2026 < MIN_ROUNDS).length;
+  const body = rows.map(r=>{
+    const flag = r.n2026 < MIN_ROUNDS;
+    return `<tr style="${flag?'background:#fff3e0':''}">
+      <td><b>${esc(playerName(r.p.id))}</b></td>
+      <td class="muted">${esc(r.p.ghin||"")}</td>
+      <td class="num">${fmtIndex(r.index)}</td>
+      <td class="num" style="${flag?'color:var(--flag-med);font-weight:700':''}">${r.n2026}${flag?' ⚠':''}</td>
+      <td class="num">${r.total}</td>
+      <td class="muted">${esc(r.last||'—')}</td>
+    </tr>`;
+  }).join("");
+  $("#view-rounds2026").innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">2026 Rounds</h2>
+        <span class="muted">${field.length} player(s) in the field</span>
+        ${short ? `<span class="flag med">${short} with fewer than ${MIN_ROUNDS} rounds in 2026</span>` : `<span class="flag ok">All have ${MIN_ROUNDS}+ rounds in 2026</span>`}
+      </div>
+      <p class="help">Every player in the tournament field and how many rounds they have posted in 2026.
+        Rows highlighted in <b style="color:var(--flag-med)">orange</b> have fewer than <b>${MIN_ROUNDS}</b> rounds posted this year.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Player</th><th>GHIN #</th><th class="num">Index</th>
+            <th class="num" title="Rounds posted in 2026">2026 Rounds</th>
+            <th class="num" title="Total rounds on file">Total Rounds</th>
+            <th>Last posted</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function renderOverview(){
   const white=teeByName("White"), blue=teeByName("Blue");
   if(!state.teams.length){
@@ -2142,6 +2195,7 @@ function switchView(v){
   if(v==="watch") renderWatch();
   if(v==="vegas") renderVegas();
   if(v==="teams") renderTeams();
+  if(v==="rounds2026") renderRounds2026();
   if(v==="overview") renderOverview();
   if(v==="team-anomaly") renderTeamAnomalies();
   if(v==="settings") renderSettings();
@@ -2154,6 +2208,7 @@ function renderAll(){
   // change (GHIN pull, import, edit, or a cloud-sync update from a teammate).
   if($("#view-anomalies").classList.contains("active"))renderAnomalies();
   if($("#view-teams").classList.contains("active"))renderTeams();
+  if($("#view-rounds2026").classList.contains("active"))renderRounds2026();
   if($("#view-vegas").classList.contains("active"))renderVegas();
   if($("#view-watch").classList.contains("active"))renderWatch();
   if($("#view-overview").classList.contains("active"))renderOverview();
