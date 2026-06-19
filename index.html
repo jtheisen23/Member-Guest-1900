@@ -783,16 +783,17 @@ function renderTeams(){
 
   const assigned = new Set();
   state.teams.forEach(t=>t.forEach(id=>id&&assigned.add(id)));
-  // pool — if a tournament field has been marked, only offer those players
-  const hasField = state.players.some(p=>p.tournament);
-  const pool = state.players.filter(p=>!assigned.has(p.id) && (!hasField || p.tournament));
+  // pool — only players marked as in the tournament field are eligible for teams
+  const pool = state.players.filter(p=>p.tournament && !assigned.has(p.id));
   $("#poolList").innerHTML = pool.length? pool.map(p=>{
     const m=playerMetrics(p);
     return `<div class="team-slot"><span><b>${esc(playerName(p.id))}</b> <span class="muted">Idx ${fmtIndex(m.index)}</span></span>
       ${editable?`<select data-assign="${p.id}"><option value="">Assign to…</option><option value="new">➕ New team</option>${
         state.teams.map((t,i)=>`<option value="${i}" ${t.filter(Boolean).length>=2?'disabled':''}>Team ${i+1}${t.filter(Boolean).length>=2?' (full)':''}</option>`).join("")
       }</select>`:""}</div>`;
-  }).join("") : '<p class="muted">All players assigned.</p>';
+  }).join("") : (state.players.some(p=>p.tournament)
+      ? '<p class="muted">All field players assigned.</p>'
+      : '<p class="muted">No players in the tournament field yet — check the <b>Field</b> box on the Players tab to make players eligible for teams.</p>');
 
   // pairing-picker dropdowns (unassigned players)
   const opts = `<option value="">— player —</option>`+pool
@@ -1170,8 +1171,8 @@ async function ghinRefreshScores(statusFn, playersList){
 /* Auto-balance: pair strongest with weakest to equalize combined metric */
 function autoBalance(){
   const metric=$("#balanceMetric").value;
-  const hasField = state.players.some(p=>p.tournament);
-  const ps=state.players.filter(p=>!hasField || p.tournament).map(p=>{
+  // only players in the tournament field are eligible for teams
+  const ps=state.players.filter(p=>p.tournament).map(p=>{
     const m=playerMetrics(p);
     return {id:p.id, v: metric==="index"?(m.index??99):(m.low??99)};
   }).sort((a,b)=>a.v-b.v);
