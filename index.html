@@ -772,16 +772,6 @@ function renderTeams(){
   // teams
   $("#teamsList").innerHTML = state.teams.map((t,i)=>{
     const p1=state.players.find(x=>x.id===t[0]), p2=state.players.find(x=>x.id===t[1]);
-    let alloc="";
-    if(p1&&p2){
-      const h=teamHandicaps(p1,p2);
-      alloc=`<table class="hcp-table" style="margin-top:6px"><tbody>
-        <tr><td><b>R1 Scramble</b> (White)</td><td class="num">Team ${fmtCH(h.r1)}</td></tr>
-        <tr><td><b>R2 Mod-Alt</b> (Blue)</td><td class="num">Team ${fmtCH(h.r2)}</td></tr>
-        <tr><td><b>R3 Best Ball</b> (White)</td><td class="num">${playerName(p1.id).split(",")[0]} ${fmtCH(h.r3a)} / ${playerName(p2.id).split(",")[0]} ${fmtCH(h.r3b)}</td></tr>
-        <tr><td><b>R4 Total</b> (Blue)</td><td class="num">${playerName(p1.id).split(",")[0]} ${fmtCH(h.r4a)} / ${playerName(p2.id).split(",")[0]} ${fmtCH(h.r4b)}</td></tr>
-      </tbody></table>`;
-    }
     const slot=(idx,id)=>{
       const m=id?playerMetrics(state.players.find(x=>x.id===id)):null;
       return `<div class="team-slot">
@@ -796,7 +786,6 @@ function renderTeams(){
       <h4>Team ${i+1} <span class="muted" style="font-weight:400">· combined index ${combined}${combHcp}</span>
         ${editable?`<button class="small" data-deleteteam="${i}" style="float:right">✕</button>`:''}</h4>
       ${slot(0,t[0])}${slot(1,t[1])}
-      ${alloc}
     </div>`;
   }).join("") || '<p class="muted">No teams yet — add one or use auto-balance.</p>';
 
@@ -890,24 +879,12 @@ function renderOverview(){
     const combined = (p1&&p2)?fmtIndex((playerMetrics(p1).index||0)+(playerMetrics(p2).index||0)):"—";
     const cc = combinedCH9(p1,p2);
     const combHcp = (p1&&p2)?`combined CH9 — White ${fmtCH(cc.w)} / Blue ${fmtCH(cc.b)}`:"";
-    let rounds = `<p class="muted" style="margin:8px 0 0">Add a second player to see team handicaps.</p>`;
-    if(p1&&p2){
-      const h=teamHandicaps(p1,p2);
-      const a=playerName(p1.id).split(",")[0], b=playerName(p2.id).split(",")[0];
-      rounds=`<table class="hcp-table" style="width:100%;margin-top:8px"><thead><tr><th>Round</th><th>Format · Tees</th><th class="num">Playing handicap</th></tr></thead><tbody>
-        <tr><td>1</td><td>Scramble · White</td><td class="num">Team ${fmtCH(h.r1)}</td></tr>
-        <tr><td>2</td><td>Mod. Alternate · Blue</td><td class="num">Team ${fmtCH(h.r2)}</td></tr>
-        <tr><td>3</td><td>Best Ball · White</td><td class="num">${esc(a)} ${fmtCH(h.r3a)} / ${esc(b)} ${fmtCH(h.r3b)}</td></tr>
-        <tr><td>4</td><td>Total Score · Blue</td><td class="num">${esc(a)} ${fmtCH(h.r4a)} / ${esc(b)} ${fmtCH(h.r4b)}</td></tr>
-      </tbody></table>`;
-    }
     return `<div class="card" style="margin:0;break-inside:avoid">
       <h3 style="margin:0 0 8px">Team ${i+1} <span class="muted" style="font-weight:400">· combined index ${combined}${combHcp?" · "+combHcp:""}</span></h3>
       <table class="hcp-table" style="width:100%"><thead><tr>
         <th>Player</th><th class="num">Index</th><th class="num" title="9-hole course handicap, White tees">CH9 White</th>
         <th class="num" title="9-hole course handicap, Blue tees">CH9 Blue</th>
       </tr></thead><tbody>${playerRow(p1)}${playerRow(p2)}</tbody></table>
-      ${rounds}
     </div>`;
   }).join("");
   $("#view-overview").innerHTML = `
@@ -919,7 +896,7 @@ function renderOverview(){
         <button id="btnOverviewCsv">Export CSV</button>
         <button onclick="window.print()">🖨 Print</button>
       </div>
-      <p class="help">Read-only summary of every pairing with playing handicaps for all four rounds.
+      <p class="help">Read-only summary of every pairing with each player's index and 9-hole course handicaps.
         <b>CH9</b> = 9-hole course handicap at the White and Blue tees. Plus handicaps shown with “+”.</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">${cards}</div>`;
