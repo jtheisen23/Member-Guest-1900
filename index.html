@@ -850,6 +850,8 @@ function renderRounds2026(){
         <h2 style="margin:0">2026 Rounds</h2>
         <span class="muted">${field.length} player(s) in the field</span>
         ${short ? `<span class="flag med">${short} with fewer than ${MIN_ROUNDS} rounds in 2026</span>` : `<span class="flag ok">All have ${MIN_ROUNDS}+ rounds in 2026</span>`}
+        <span class="spacer" style="flex:1"></span>
+        <button id="btnExportField" title="Download all tournament-field players and their indexes as CSV">⬇ Export field (CSV)</button>
       </div>
       <p class="help">Every player in the tournament field and how many rounds they have posted in 2026.
         Rows highlighted in <b style="color:var(--flag-med)">orange</b> have fewer than <b>${MIN_ROUNDS}</b> rounds posted this year.</p>
@@ -865,6 +867,7 @@ function renderRounds2026(){
         </table>
       </div>
     </div>`;
+  const btn=$("#btnExportField"); if(btn) btn.onclick=exportField;
 }
 
 function renderOverview(){
@@ -1890,6 +1893,20 @@ function exportTeams(){
   downloadBlob(new Blob([csv],{type:"text/csv"}),"teams.csv");
 }
 function downloadBlob(blob,name){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+/* Export every tournament-field player and their index as CSV. */
+function exportField(){
+  const field = state.players.filter(p=>p.tournament)
+    .slice().sort((a,b)=>playerName(a.id).localeCompare(playerName(b.id)));
+  if(!field.length){ alert("No players are in the tournament field yet — check the Field box on the Players tab."); return; }
+  const idx = v => (v===null||v===undefined||isNaN(v)) ? "" : (v<0 ? "+"+Math.abs(v).toFixed(1) : Number(v).toFixed(1));
+  const ch  = v => (v===null||v===undefined||isNaN(v)) ? "" : (v<0 ? "+"+Math.abs(v) : String(v));
+  const white=teeByName("White"), blue=teeByName("Blue");
+  const lines=[["LastName","FirstName","GHIN","Index","CH9_White","CH9_Blue","Rounds2026","TotalRounds"]];
+  field.forEach(p=>{ const m=playerMetrics(p);
+    lines.push([p.lastName||"",p.firstName||"",p.ghin||"",idx(m.index),ch(ch9(m.index,white)),ch(ch9(m.index,blue)),m.rounds2026,m.n]); });
+  const csv=lines.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  downloadBlob(new Blob([csv],{type:"text/csv"}),"tournament-field.csv");
+}
 
 /* =========================== SAMPLE DATA =========================== */
 function loadSample(){
