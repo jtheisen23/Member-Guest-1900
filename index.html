@@ -493,12 +493,12 @@ function roundIsGeneva(r){ return /geneva/i.test(String(r.course||r.tees||"")); 
 function ch18(index, tee){ if(index==null) return null; return Math.round(index*tee.s18/113 + (tee.r18-tee.par18)); }
 // 9-hole course handicap = full 18-hole course handicap ÷ 2 (per committee rules).
 function ch9(index, tee){ const c=ch18(index,tee); return c==null?null:Math.round(c/2); }
-// Tournament allocation: 100% of the course handicap split across the two nines.
-// When the full course handicap is odd, the extra stroke goes to the White nine
-// (rounds up); the Blue nine rounds down.
+// Tournament allocation: take the FULL 18-hole course handicap (White tees) and
+// split it across the two nines — White = front nine, Blue = back nine. When the
+// total is odd the extra stroke goes to the front (White) nine.
 function ch9alloc(index, tee){
-  const c=ch18(index,tee); if(c==null) return null;
-  return (tee && tee.name==="White") ? Math.ceil(c/2) : Math.floor(c/2);
+  const full=ch18(index, teeByName("White")); if(full==null) return null;
+  return (tee && tee.name==="White") ? Math.ceil(full/2) : Math.floor(full/2);
 }
 
 /* Per-player computed metrics */
@@ -890,8 +890,8 @@ function renderOverview(){
     return `<div class="card" style="margin:0;break-inside:avoid">
       <h3 style="margin:0 0 8px">Team ${i+1} <span class="muted" style="font-weight:400">· combined index ${combined}${combHcp?" · "+combHcp:""}</span></h3>
       <table class="hcp-table" style="width:100%"><thead><tr>
-        <th>Player</th><th class="num">Index</th><th class="num" title="9-hole course handicap, White tees">CH9 White</th>
-        <th class="num" title="9-hole course handicap, Blue tees">CH9 Blue</th>
+        <th>Player</th><th class="num">Index</th><th class="num" title="Front nine — full 18-hole course handicap split in half, odd stroke to the front">CH9 White (front)</th>
+        <th class="num" title="Back nine — full 18-hole course handicap split in half, rounds down">CH9 Blue (back)</th>
       </tr></thead><tbody>${playerRow(p1)}${playerRow(p2)}</tbody></table>
     </div>`;
   }).join("");
@@ -905,8 +905,8 @@ function renderOverview(){
         <button onclick="window.print()">🖨 Print</button>
       </div>
       <p class="help">Read-only summary of every pairing with each player's index and per-nine playing handicaps.
-        <b>CH9 White / CH9 Blue</b> = 100% of the course handicap split across the two nines; when the full
-        course handicap is odd, the extra stroke goes to the <b>White</b> nine. Plus handicaps shown with “+”.</p>
+        The full 18-hole course handicap is split in half: <b>CH9 White</b> = front nine, <b>CH9 Blue</b> = back nine.
+        When the total is odd, the extra stroke goes to the <b>front (White)</b> nine. Plus handicaps shown with “+”.</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">${cards}</div>`;
   const e=$("#btnOverviewCsv"); if(e) e.onclick=exportTeams;
