@@ -493,6 +493,13 @@ function roundIsGeneva(r){ return /geneva/i.test(String(r.course||r.tees||"")); 
 function ch18(index, tee){ if(index==null) return null; return Math.round(index*tee.s18/113 + (tee.r18-tee.par18)); }
 // 9-hole course handicap = full 18-hole course handicap ÷ 2 (per committee rules).
 function ch9(index, tee){ const c=ch18(index,tee); return c==null?null:Math.round(c/2); }
+// Tournament allocation: 100% of the course handicap split across the two nines.
+// When the full course handicap is odd, the extra stroke goes to the White nine
+// (rounds up); the Blue nine rounds down.
+function ch9alloc(index, tee){
+  const c=ch18(index,tee); if(c==null) return null;
+  return (tee && tee.name==="White") ? Math.ceil(c/2) : Math.floor(c/2);
+}
 
 /* Per-player computed metrics */
 function playerMetrics(p){
@@ -688,11 +695,12 @@ function teamHandicaps(p1,p2){
 }
 function playerName(id){ const p=state.players.find(x=>x.id===id); if(!p) return ""; return (p.lastName?p.lastName+", ":"")+(p.firstName||"")||p.name||"(unnamed)"; }
 
-/* Combined 9-hole course handicap of a pair, per tee (sum of both players' CH9). */
+/* Combined 9-hole allocation of a pair, per tee (sum of both players' 100%
+   allocation; odd stroke on the White nine). */
 function combinedCH9(p1,p2){
   if(!p1||!p2) return {w:null,b:null};
   const i1=playerMetrics(p1).index, i2=playerMetrics(p2).index;
-  const sum=t=>{ const a=ch9(i1,teeByName(t)), c=ch9(i2,teeByName(t)); return (a!=null&&c!=null)?a+c:null; };
+  const sum=t=>{ const a=ch9alloc(i1,teeByName(t)), c=ch9alloc(i2,teeByName(t)); return (a!=null&&c!=null)?a+c:null; };
   return {w:sum("White"), b:sum("Blue")};
 }
 
@@ -872,7 +880,7 @@ function renderOverview(){
     const m=playerMetrics(p);
     return `<tr><td><b>${esc(playerName(p.id))}</b> <span class="muted">${esc(p.ghin||"")}</span></td>
       <td class="num">${fmtIndex(m.index)}</td>
-      <td class="num">${fmtCH(ch9(m.index,white))}</td><td class="num">${fmtCH(ch9(m.index,blue))}</td></tr>`;
+      <td class="num">${fmtCH(ch9alloc(m.index,white))}</td><td class="num">${fmtCH(ch9alloc(m.index,blue))}</td></tr>`;
   };
   const cards = state.teams.map((t,i)=>{
     const p1=state.players.find(x=>x.id===t[0]), p2=state.players.find(x=>x.id===t[1]);
@@ -896,8 +904,9 @@ function renderOverview(){
         <button id="btnOverviewCsv">Export CSV</button>
         <button onclick="window.print()">🖨 Print</button>
       </div>
-      <p class="help">Read-only summary of every pairing with each player's index and 9-hole course handicaps.
-        <b>CH9</b> = 9-hole course handicap at the White and Blue tees. Plus handicaps shown with “+”.</p>
+      <p class="help">Read-only summary of every pairing with each player's index and per-nine playing handicaps.
+        <b>CH9 White / CH9 Blue</b> = 100% of the course handicap split across the two nines; when the full
+        course handicap is odd, the extra stroke goes to the <b>White</b> nine. Plus handicaps shown with “+”.</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">${cards}</div>`;
   const e=$("#btnOverviewCsv"); if(e) e.onclick=exportTeams;
@@ -1865,7 +1874,7 @@ function exportBackup(){
 function exportTeams(){
   const lines=[["Team","Player","GHIN","Index","CH9_White","CH9_Blue"]];
   state.teams.forEach((t,i)=>t.forEach(id=>{ if(!id)return; const p=state.players.find(x=>x.id===id); const m=playerMetrics(p);
-    lines.push([i+1,playerName(id),p.ghin||"",fmtIndex(m.index),fmtCH(ch9(m.index,teeByName("White"))),fmtCH(ch9(m.index,teeByName("Blue")))]); }));
+    lines.push([i+1,playerName(id),p.ghin||"",fmtIndex(m.index),fmtCH(ch9alloc(m.index,teeByName("White"))),fmtCH(ch9alloc(m.index,teeByName("Blue")))]); }));
   const csv=lines.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
   downloadBlob(new Blob([csv],{type:"text/csv"}),"teams.csv");
 }
@@ -1880,7 +1889,7 @@ function exportField(){
   const white=teeByName("White"), blue=teeByName("Blue");
   const lines=[["LastName","FirstName","GHIN","Index","CH9_White","CH9_Blue","Rounds2026","TotalRounds"]];
   field.forEach(p=>{ const m=playerMetrics(p);
-    lines.push([p.lastName||"",p.firstName||"",p.ghin||"",idx(m.index),ch(ch9(m.index,white)),ch(ch9(m.index,blue)),m.rounds2026,m.n]); });
+    lines.push([p.lastName||"",p.firstName||"",p.ghin||"",idx(m.index),ch(ch9alloc(m.index,white)),ch(ch9alloc(m.index,blue)),m.rounds2026,m.n]); });
   const csv=lines.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
   downloadBlob(new Blob([csv],{type:"text/csv"}),"tournament-field.csv");
 }
