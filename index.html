@@ -1176,7 +1176,13 @@ async function ghinRefreshScores(statusFn, playersList){
     if(statusFn) statusFn(`Updating scores… ${++done}/${targets.length} (${playerName(p.id)})`);
     const id=p.ghin||p.ghinId; let s=false;
     for(let a=0;a<2&&!s;a++){
-      try{ p.rounds=roundsFromGhinJson(await GHIN.scores(id)); if(GHIN.lastScoresIndex!=null) p.index=GHIN.lastScoresIndex; ok++; s=true; save(); }
+      try{
+        p.rounds=roundsFromGhinJson(await GHIN.scores(id));
+        let idx=GHIN.lastScoresIndex;
+        if(idx==null && p.index==null){ try{ idx=await GHIN.golfer(id); }catch(e){} }
+        if(idx!=null) p.index=idx;
+        ok++; s=true; save();
+      }
       catch(e){ if(a===0) await new Promise(r=>setTimeout(r,400)); else fail++; }
     }
   }
@@ -1281,14 +1287,16 @@ function bindRoundHandlers(){
       const raw = await GHIN.scores(ghin);
       const rounds = roundsFromGhinJson(raw);
       $("#playerDialog")._rounds = rounds; refreshRoundsTable();
-      // Update the index too: prefer GHIN's official index, else compute from the pulled rounds.
-      const official = GHIN.lastScoresIndex;
+      // Update the index too: prefer GHIN's official index (from the scores
+      // response, or a direct golfer lookup for non-members), else compute it.
+      let official = GHIN.lastScoresIndex;
+      if(official==null){ try{ official = await GHIN.golfer(ghin); }catch(e){} }
       const computed = indexFromRounds(rounds);
       if(official!=null) $("#pdIndex").value = fmtIndex(official);
       let note = `Pulled ${rounds.length} rounds`;
       if(official!=null) note += ` · GHIN index ${fmtIndex(official)}`;
       else if(computed!=null) note += ` · computed index ${fmtIndex(computed)} (auto)`;
-      msg.textContent = rounds.length? note + " — click Save to keep." : "GHIN returned 0 rounds for this GHIN #.";
+      msg.textContent = rounds.length || official!=null? note + " — click Save to keep." : "GHIN returned 0 rounds for this GHIN #.";
     }catch(e){ msg.textContent="Failed: "+e.message; }
     finally{ btn.disabled=false; }
   };
@@ -1536,6 +1544,31 @@ const GHIN = {
       if(rec.length<20 && p>=1 && !(j.scores||j.data)) break; // recent list exhausted
     }
     return all;
+  },
+
+  /* Fetch one golfer's CURRENT handicap index directly. Manually-added players
+     who aren't Geneva members never pass through the club roster (which is what
+     supplies indexes for members), and the scores endpoint doesn't return an
+     index — so look the golfer up by GHIN #. Tries the search endpoint, then a
+     direct profile fetch; returns a parsed index or null (callers fall back to
+     the index computed from posted rounds). Non-fatal: swallows errors. */
+  async golfer(id){
+    const readIdx = g => (g && typeof g==="object")
+      ? parseIndex(g.handicap_index ?? g.hi_display ?? g.hi_value ?? g.handicap ?? g.display_value)
+      : null;
+    const attempts = [
+      ["/golfers/search.json", { golfer_id:id, global_search:true, status:"Active", from_ghin:true, per_page:25, page:1, sorting_criteria:"full_name", order:"asc" }],
+      ["/golfers/"+encodeURIComponent(id)+".json", {}],
+    ];
+    for(const [path,params] of attempts){
+      try{
+        const j = await this.get(path, params);
+        const g = (j.golfer) || (Array.isArray(j.golfers) && j.golfers[0]) || (Array.isArray(j) && j[0]) || j;
+        const idx = readIdx(g);
+        if(idx!=null) return idx;
+      }catch(e){ /* try the next endpoint shape */ }
+    }
+    return null;
   }
 };
 async function safeText(res){ try{ return (await res.text()).slice(0,200); }catch(e){ return ""; } }
@@ -1796,7 +1829,7 @@ function wireGhin(){
       const id = p.ghin || p.ghinId;   // GHIN number is the scores key
       let success=false;
       for(let attempt=0; attempt<2 && !success; attempt++){
-        try{ p.rounds = roundsFromGhinJson(await GHIN.scores(id)); if(GHIN.lastScoresIndex!=null) p.index=GHIN.lastScoresIndex; ok++; success=true; save(); renderPlayers(); }
+        try{ p.rounds = roundsFromGhinJson(await GHIN.scores(id)); let idx=GHIN.lastScoresIndex; if(idx==null && p.index==null){ try{ idx=await GHIN.golfer(id); }catch(e){} } if(idx!=null) p.index=idx; ok++; success=true; save(); renderPlayers(); }
         catch(e){ if(attempt===0){ await new Promise(r=>setTimeout(r,400)); } else { fail++; failed.push(playerName(p.id)); console.warn("scores failed for",playerName(p.id),e); } }
       }
     }
