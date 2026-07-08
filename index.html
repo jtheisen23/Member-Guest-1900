@@ -354,7 +354,8 @@ const DEFAULT_STATE = () => ({
     improving:3.0,      // last-5 avg better than index by this => trending hot
     inflating:3.0,      // recent diffs worse than older by this => possible inflation
     potentialGap:3.0,   // index minus low differential gap => sandbag potential
-    vegasDelta:3.0      // Vegas vs weekday index gap that flags on the Vegas tab
+    vegasDelta:3.0,     // Vegas vs weekday index gap that flags on the Vegas tab
+    lowHiGap:3.0        // current index above 12-month Low H.I. by this => index inflated off its recent low
   },
   ghin: {            // GHIN API integration (see Import dialog / Help)
     base:"https://api2.ghin.com/api/v1",
@@ -553,6 +554,9 @@ function evaluate(p){
       add("high","Trending hot", `Last-5 differential (${fmt(m.recent)}) is ${fmt(m.index-m.recent)} better than index (${fmtIndex(m.index)}) — playing above their number.`);
     if(m.trend!=null && m.trend > T.inflating)
       add("high","Scores rising", `Recent differentials average ${fmt(m.trend)} higher than earlier ones — index drifting up before the event.`);
+    const lowGap = (p.lowHI!=null && m.index!=null) ? (Number(m.index)-Number(p.lowHI)) : null;
+    if(lowGap!=null && lowGap > T.lowHiGap)
+      add(lowGap > T.lowHiGap+2 ? "high":"med","Above low HI", `Current index (${fmtIndex(m.index)}) is ${fmt(lowGap)} above the 12-month Low H.I. (${fmtIndex(p.lowHI)}) — index has risen off its recent low (WHS soft-cap territory).`);
     if(m.index!=null && m.low!=null && (m.index - m.low) > (T.potentialGap+5))
       add("med","Big upside", `Best round (${fmt(m.low)}) is well below index (${fmtIndex(m.index)}) — capable of a low net on a good day.`);
     // posting variety checks
