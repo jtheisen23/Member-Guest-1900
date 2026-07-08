@@ -163,6 +163,7 @@
               <th data-sort="name">Player</th>
               <th data-sort="ghin">GHIN #</th>
               <th data-sort="index" class="num">Index</th>
+              <th data-sort="lowhi" class="num" title="WHS Low H.I. — lowest handicap index in the last 12 months (from GHIN)">Low HI</th>
               <th data-sort="ch9" class="num" title="9-hole course handicap at selected tee">CH (9)</th>
               <th data-sort="rounds" class="num" title="Total rounds on file">Rounds</th>
               <th data-sort="r9" class="num" title="9-hole rounds posted">9-hole</th>
@@ -585,7 +586,7 @@ function renderPlayers(){
       p, ev, m,
       name:(p.lastName?p.lastName+", ":"")+(p.firstName||"")||p.name||"(unnamed)",
       ghin:p.ghin||"",
-      index:m.index, ch9:ch9(m.index,tee), ch18:ch18(m.index,tee),
+      index:m.index, lowhi:(p.lowHI!=null&&!isNaN(p.lowHI))?Number(p.lowHI):null, ch9:ch9(m.index,tee), ch18:ch18(m.index,tee),
       rounds:m.n, r9:m.rounds9, r18:m.rounds18, r2026:m.rounds2026, avg:m.avg, recent:m.recent, low:m.low, trend:m.trend, sev:ev.score,
       field:p.tournament?1:0, vegas:p.vegas?1:0
     };
@@ -611,6 +612,7 @@ function renderPlayers(){
       <td><b>${esc(r.name)}</b></td>
       <td class="muted">${esc(r.ghin)}</td>
       <td class="num">${fmtIndex(r.index)}</td>
+      <td class="num">${fmtIndex(r.lowhi)}</td>
       <td class="num">${fmtCH(r.ch9)}</td>
       <td class="num">${r.rounds}</td>
       <td class="num">${r.r9}</td>
@@ -624,7 +626,7 @@ function renderPlayers(){
       <td><button class="small" data-edit="${r.p.id}">Edit</button></td>
     </tr>`;
   }).join("");
-  $("#playersBody").innerHTML = body || `<tr><td colspan="16" class="muted" style="padding:24px;text-align:center">No players yet. Use <b>⛳ Pull from GHIN</b> to load the Geneva roster, or <b>Load sample data</b> to explore.</td></tr>`;
+  $("#playersBody").innerHTML = body || `<tr><td colspan="17" class="muted" style="padding:24px;text-align:center">No players yet. Use <b>⛳ Pull from GHIN</b> to load the Geneva roster, or <b>Load sample data</b> to explore.</td></tr>`;
 }
 
 /* tiny SVG sparkline of differentials, oldest->newest (lower=better) */
@@ -1167,9 +1169,10 @@ async function ghinRefreshScores(statusFn, playersList){
     for(let a=0;a<2&&!s;a++){
       try{
         p.rounds=roundsFromGhinJson(await GHIN.scores(id));
-        let idx=GHIN.lastScoresIndex;
-        if(idx==null && p.index==null){ try{ idx=await GHIN.golfer(id); }catch(e){} }
+        let idx=GHIN.lastScoresIndex, low=GHIN.lastScoresLowHI;
+        if((idx==null && p.index==null) || (low==null && p.lowHI==null)){ try{ const gi=await GHIN.golfer(id); if(idx==null) idx=gi; if(low==null) low=GHIN.lastGolferLowHI; }catch(e){} }
         if(idx!=null) p.index=idx;
+        if(low!=null) p.lowHI=low;
         ok++; s=true; save();
       }
       catch(e){ if(a===0) await new Promise(r=>setTimeout(r,400)); else fail++; }
@@ -1220,6 +1223,7 @@ function openPlayer(id){
       <div class="field"><label>Last name</label><input id="pdLast" value="${esc(p.lastName)}"></div>
       <div class="field"><label>GHIN #</label><input id="pdGhin" value="${esc(p.ghin)}"></div>
       <div class="field"><label>Handicap Index <span class="muted" style="font-weight:400">(use + for plus, e.g. +2.0)</span></label><input id="pdIndex" type="text" value="${p.index==null?"":fmtIndex(p.index)}" placeholder="auto"></div>
+      <div class="field"><label>Low H.I. <span class="muted" style="font-weight:400">(12-month, from GHIN)</span></label><input id="pdLowHI" type="text" value="${p.lowHI==null?"":fmtIndex(p.lowHI)}" placeholder="—"></div>
       <div class="field"><label>Gender</label><select id="pdGender"><option value="M" ${p.gender!=="F"?"selected":""}>M</option><option value="F" ${p.gender==="F"?"selected":""}>F</option></select></div>
     </div>
     ${statBox}
@@ -1278,13 +1282,15 @@ function bindRoundHandlers(){
       $("#playerDialog")._rounds = rounds; refreshRoundsTable();
       // Update the index too: prefer GHIN's official index (from the scores
       // response, or a direct golfer lookup for non-members), else compute it.
-      let official = GHIN.lastScoresIndex;
-      if(official==null){ try{ official = await GHIN.golfer(ghin); }catch(e){} }
+      let official = GHIN.lastScoresIndex, low = GHIN.lastScoresLowHI;
+      if(official==null || low==null){ try{ const gi=await GHIN.golfer(ghin); if(official==null) official=gi; if(low==null) low=GHIN.lastGolferLowHI; }catch(e){} }
       const computed = indexFromRounds(rounds);
       if(official!=null) $("#pdIndex").value = fmtIndex(official);
+      if(low!=null) $("#pdLowHI").value = fmtIndex(low);
       let note = `Pulled ${rounds.length} rounds`;
       if(official!=null) note += ` · GHIN index ${fmtIndex(official)}`;
       else if(computed!=null) note += ` · computed index ${fmtIndex(computed)} (auto)`;
+      if(low!=null) note += ` · Low H.I. ${fmtIndex(low)}`;
       msg.textContent = rounds.length || official!=null? note + " — click Save to keep." : "GHIN returned 0 rounds for this GHIN #.";
     }catch(e){ msg.textContent="Failed: "+e.message; }
     finally{ btn.disabled=false; }
@@ -1315,7 +1321,7 @@ function savePlayer(){
   const r=$("#playerDialog")._rounds.filter(x=>x.date||x.score);
   const data={
     firstName:$("#pdFirst").value.trim(), lastName:$("#pdLast").value.trim(),
-    ghin:$("#pdGhin").value.trim(), index:parseIndex($("#pdIndex").value), gender:$("#pdGender").value,
+    ghin:$("#pdGhin").value.trim(), index:parseIndex($("#pdIndex").value), lowHI:parseIndex($("#pdLowHI").value), gender:$("#pdGender").value,
     rounds:r
   };
   if(editingId){ Object.assign(state.players.find(x=>x.id===editingId), data); }
@@ -1422,6 +1428,16 @@ function indexFromGhinScoresJson(j){
             ?? pick(j.revision_scores) ?? pick(j.recent_scores);
   return parseIndex(cand);
 }
+/* WHS "Low H.I." — the lowest handicap index over the trailing 12 months. */
+function lowHiFromGhin(o){
+  if(!o || typeof o!=="object") return null;
+  return parseIndex(o.low_hi ?? o.low_hi_display ?? o.low_handicap_index ?? o.low_hi_value ?? o.lowHI ?? o.low_index);
+}
+function lowHiFromGhinScoresJson(j){
+  if(!j || typeof j!=="object") return null;
+  return lowHiFromGhin(j) ?? lowHiFromGhin(j.golfer) ?? lowHiFromGhin(j.golfer_data)
+      ?? lowHiFromGhin(j.revision_scores) ?? lowHiFromGhin(j.recent_scores);
+}
 /* Map a GHIN golfer record (search/roster result) into our player model. */
 function playerFromGhinGolfer(g){
   const club = g.club || {};
@@ -1432,6 +1448,7 @@ function playerFromGhinGolfer(g){
     ghinId:    g.id || g.golfer_id || g.ghin || g.ghin_number || null,  // id for /golfers/{id}/scores
     // prefer display strings; hi_value uses 999 as a "no handicap" sentinel
     index:     parseIndex(g.handicap_index ?? g.hi_display ?? g.display ?? g.display_value ?? g.handicap ?? g.hi_value),
+    lowHI:     lowHiFromGhin(g),
     gender:    g.gender || (club.gender) || "M",
     clubName:  g.club_name || club.club_name || ""
   };
@@ -1520,10 +1537,12 @@ const GHIN = {
     pages = pages || state.ghin.pages || 3;
     let all=[]; const seen=new Set();
     this.lastScoresIndex = null;   // official handicap index seen in the response, if any
+    this.lastScoresLowHI = null;   // 12-month Low H.I. seen in the response, if any
     const keyOf=s=> s.id!=null ? "id:"+s.id : `${s.played_at||s.posted_at||""}|${s.adjusted_gross_score??s.score}|${s.course_rating??""}`;
     for(let p=1;p<=pages;p++){
       const j = await this.get(`/golfers/${encodeURIComponent(golferId)}/scores.json`, { per_page:20, page:p });
       if(this.lastScoresIndex==null){ const gi=indexFromGhinScoresJson(j); if(gi!=null) this.lastScoresIndex=gi; }
+      if(this.lastScoresLowHI==null){ const lo=lowHiFromGhinScoresJson(j); if(lo!=null) this.lastScoresLowHI=lo; }
       const rev = (j.revision_scores && j.revision_scores.scores) || [];
       const rec = (j.recent_scores && j.recent_scores.scores) || [];
       let batch = [...rev, ...rec];
@@ -1542,6 +1561,7 @@ const GHIN = {
      direct profile fetch; returns a parsed index or null (callers fall back to
      the index computed from posted rounds). Non-fatal: swallows errors. */
   async golfer(id){
+    this.lastGolferLowHI = null;   // 12-month Low H.I. from the lookup, if any
     const readIdx = g => (g && typeof g==="object")
       ? parseIndex(g.handicap_index ?? g.hi_display ?? g.hi_value ?? g.handicap ?? g.display_value)
       : null;
@@ -1553,6 +1573,7 @@ const GHIN = {
       try{
         const j = await this.get(path, params);
         const g = (j.golfer) || (Array.isArray(j.golfers) && j.golfers[0]) || (Array.isArray(j) && j[0]) || j;
+        if(this.lastGolferLowHI==null){ const lo=lowHiFromGhin(g); if(lo!=null) this.lastGolferLowHI=lo; }
         const idx = readIdx(g);
         if(idx!=null) return idx;
       }catch(e){ /* try the next endpoint shape */ }
@@ -1634,7 +1655,7 @@ function upsertPlayer(data){
   if(data.ghin) p=state.players.find(x=>x.ghin&&x.ghin===data.ghin);
   if(!p && data.ghinId) p=state.players.find(x=>x.ghinId&&String(x.ghinId)===String(data.ghinId));
   if(!p) p=state.players.find(x=>x.firstName===data.firstName && x.lastName===data.lastName && data.lastName);
-  if(p){ if(data.index!=null) p.index=data.index; if(data.gender) p.gender=data.gender; if(!p.ghin&&data.ghin)p.ghin=data.ghin; if(data.ghinId)p.ghinId=data.ghinId; }
+  if(p){ if(data.index!=null) p.index=data.index; if(data.lowHI!=null) p.lowHI=data.lowHI; if(data.gender) p.gender=data.gender; if(!p.ghin&&data.ghin)p.ghin=data.ghin; if(data.ghinId)p.ghinId=data.ghinId; }
   else { p={id:uid(),rounds:[],...data}; state.players.push(p); }
   return p;
 }
@@ -1818,7 +1839,7 @@ function wireGhin(){
       const id = p.ghin || p.ghinId;   // GHIN number is the scores key
       let success=false;
       for(let attempt=0; attempt<2 && !success; attempt++){
-        try{ p.rounds = roundsFromGhinJson(await GHIN.scores(id)); let idx=GHIN.lastScoresIndex; if(idx==null && p.index==null){ try{ idx=await GHIN.golfer(id); }catch(e){} } if(idx!=null) p.index=idx; ok++; success=true; save(); renderPlayers(); }
+        try{ p.rounds = roundsFromGhinJson(await GHIN.scores(id)); let idx=GHIN.lastScoresIndex, low=GHIN.lastScoresLowHI; if((idx==null && p.index==null)||(low==null && p.lowHI==null)){ try{ const gi=await GHIN.golfer(id); if(idx==null) idx=gi; if(low==null) low=GHIN.lastGolferLowHI; }catch(e){} } if(idx!=null) p.index=idx; if(low!=null) p.lowHI=low; ok++; success=true; save(); renderPlayers(); }
         catch(e){ if(attempt===0){ await new Promise(r=>setTimeout(r,400)); } else { fail++; failed.push(playerName(p.id)); console.warn("scores failed for",playerName(p.id),e); } }
       }
     }
@@ -1887,9 +1908,9 @@ function exportField(){
   const idx = v => (v===null||v===undefined||isNaN(v)) ? "" : (v<0 ? "+"+Math.abs(v).toFixed(1) : Number(v).toFixed(1));
   const ch  = v => (v===null||v===undefined||isNaN(v)) ? "" : (v<0 ? "+"+Math.abs(v) : String(v));
   const white=teeByName("White"), blue=teeByName("Blue");
-  const lines=[["LastName","FirstName","GHIN","Index","CH9_White","CH9_Blue","Rounds2026","TotalRounds"]];
+  const lines=[["LastName","FirstName","GHIN","Index","LowHI","CH9_White","CH9_Blue","Rounds2026","TotalRounds"]];
   field.forEach(p=>{ const m=playerMetrics(p);
-    lines.push([p.lastName||"",p.firstName||"",p.ghin||"",idx(m.index),ch(ch9alloc(m.index,white)),ch(ch9alloc(m.index,blue)),m.rounds2026,m.n]); });
+    lines.push([p.lastName||"",p.firstName||"",p.ghin||"",idx(m.index),idx(p.lowHI),ch(ch9alloc(m.index,white)),ch(ch9alloc(m.index,blue)),m.rounds2026,m.n]); });
   const csv=lines.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
   downloadBlob(new Blob([csv],{type:"text/csv"}),"tournament-field.csv");
 }
